@@ -1,202 +1,40 @@
 <!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Paper Spot Bot</title>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Paper Spot Bot - Live</title>
 <style>
-* { box-sizing:border-box; }
-body {
-  margin:0; padding:16px; background:#101722; color:#edf2f7;
-  font-family:Arial,sans-serif; max-width:900px; margin-inline:auto;
-}
-h1 { margin-bottom:4px; }
-.muted { color:#aab7c7; }
-.notice,.card {
-  background:#1b2736; border-radius:12px; padding:16px;
-  margin:12px 0; overflow-wrap:anywhere;
-}
-.notice { border:1px solid #47745c; }
-.grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
-.metric { background:#101722; padding:12px; border-radius:8px; }
-.value { font-size:1.35rem; font-weight:bold; margin-top:6px; }
-button {
-  padding:11px 14px; margin:5px 5px 5px 0; border:0;
-  border-radius:7px; font-weight:bold; background:#3576d3; color:white;
-}
-.pause { background:#9b7219; }
-.stop { background:#a83b45; }
-table { width:100%; border-collapse:collapse; font-size:.88rem; }
-th,td { text-align:left; padding:9px 5px; border-bottom:1px solid #354255; }
-.tablewrap { overflow-x:auto; }
-.good { color:#73dda0; }
-.bad { color:#ff9b9b; }
-small { color:#aab7c7; }
-@media(max-width:480px) {
-  body { padding:10px; }
-  .grid { grid-template-columns:1fr 1fr; }
-  th,td { padding:7px 3px; }
-}
-</style>
-</head>
-<body>
+body{background:#0f172a;color:#e2e8f0;font-family:system-ui;padding:16px}
+.card{background:#1e293b;border-radius:12px;padding:16px;margin:8px 0}
+h1{margin:0 0 8px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.badge{background:#334155;padding:8px 12px;border-radius:8px;font-size:14px}
+.value{font-size:22px;font-weight:bold;margin-top:6px}
+.small{color:#94a3b8;font-size:12px}
+</style></head><body>
 <h1>Paper Spot Bot</h1>
-<p class="muted">Separate $10.05 simulated spot account</p>
-
-<div class="notice">
-  🔒 <b>Paper trading only.</b> Real-money orders are disabled.
-</div>
-
-<div class="card">
-  <div class="grid">
-    <div class="metric">Mode<div id="mode" class="value">Loading</div></div>
-    <div class="metric">Cash<div id="cash" class="value">—</div></div>
-    <div class="metric">Equity<div id="equity" class="value">—</div></div>
-    <div class="metric">Realized P/L<div id="realized" class="value">—</div></div>
-    <div class="metric">Unrealized P/L<div id="unrealized" class="value">—</div></div>
-    <div class="metric">Open positions<div id="count" class="value">—</div></div>
-  </div>
-  <p id="status" class="muted">Connecting to paper engine…</p>
-  <button onclick="control('running')">Start</button>
-  <button class="pause" onclick="control('paused')">Pause</button>
-  <button class="stop" onclick="control('stopped')">Stop</button>
-  <p><small>Start scans markets. Pause blocks new entries but continues managing open positions. Stop requests the worker to exit.</small></p>
-</div>
-
-<div class="card">
-  <h3>Markets</h3>
-  <div class="tablewrap">
-    <table>
-      <thead><tr><th>Market</th><th>Price</th><th>RSI</th><th>Signal</th></tr></thead>
-      <tbody id="markets"><tr><td colspan="4">Waiting for data</td></tr></tbody>
-    </table>
-  </div>
-</div>
-
-<div class="card">
-  <h3>Open positions</h3>
-  <div class="tablewrap">
-    <table>
-      <thead><tr><th>Market</th><th>Entry</th><th>Price</th><th>Stop</th><th>Net P/L</th></tr></thead>
-      <tbody id="positions"><tr><td colspan="5">No position data yet</td></tr></tbody>
-    </table>
-  </div>
-</div>
-
-<div class="card">
-  <h3>Recent trades</h3>
-  <div class="tablewrap">
-    <table>
-      <thead><tr><th>Time</th><th>Side</th><th>Market</th><th>Price</th><th>Net P/L</th><th>Reason</th></tr></thead>
-      <tbody id="history"><tr><td colspan="6">No history loaded</td></tr></tbody>
-    </table>
-  </div>
-</div>
-
-<div class="card">
-  <h3>Strategy settings</h3>
-  <p>EMA 9/21 crossover + RSI 50–68 + ATR trailing stop.</p>
-  <p id="netTarget">Net target: loading from engine...</p>
-  <p id="config" class="muted">Settings load from engine.</p>
-  <p id="errors" class="bad"></p>
-  <p id="scan" class="muted"></p>
-</div>
-
+<div class="small">Separate $10.05 simulated spot account • Live from GitHub</div>
+<div class="card" style="border-left:4px solid #22c55e">🔒 Paper trading only. Real-money orders are disabled.</div>
+<div id="content">Loading...</div>
 <script>
-const $ = id => document.getElementById(id);
-const money = n => Number.isFinite(Number(n)) ? '$' + Number(n).toFixed(4) : '—';
-const fmt = n => Number.isFinite(Number(n)) ? Number(n).toFixed(4) : '—';
-
-function cell(text) {
-  const td = document.createElement('td');
-  td.textContent = text == null ? '—' : String(text);
-  return td;
+async function load(){
+ try{
+  const s = await (await fetch('./state.json?v='+Date.now())).json();
+  const eq = s.equity || s.total_equity || 0;
+  const cash = s.cash || s.available_cash || 0;
+  const realized = s.realized_pnl || s.realized || 0;
+  const unreal = s.unrealized_pnl || s.unrealized || 0;
+  const pos = (s.positions && Object.keys(s.positions).length) || s.open_positions || 0;
+  document.getElementById('content').innerHTML = `
+  <div class="grid">
+   <div class="card"><div class="badge">Mode</div><div class="value" style="color:#38bdf8">${s.mode || 'PAPER'}</div></div>
+   <div class="card"><div class="badge">Cash</div><div class="value">$${cash.toFixed(2)}</div></div>
+   <div class="card"><div class="badge">Equity</div><div class="value">$${eq.toFixed(2)}</div></div>
+   <div class="card"><div class="badge">Realized P/L</div><div class="value" style="color:${realized>=0?'#22c55e':'#ef4444'}">$${realized.toFixed(2)}</div></div>
+   <div class="card"><div class="badge">Unrealized P/L</div><div class="value">$${unreal.toFixed(2)}</div></div>
+   <div class="card"><div class="badge">Open positions</div><div class="value">${pos}</div></div>
+  </div>
+  <div class="card"><div class="small">Last update: ${new Date().toLocaleString()}</div></div>`;
+ }catch(e){ document.getElementById('content').innerHTML = 'Error: '+e.message; }
 }
-function row(values) {
-  const tr = document.createElement('tr');
-  values.forEach(v => tr.appendChild(cell(v)));
-  return tr;
-}
-function fillTable(id, rows, empty, cols) {
-  const body = $(id);
-  body.replaceChildren();
-  if (!rows || !rows.length) {
-    const tr = document.createElement('tr');
-    const td = cell(empty);
-    td.colSpan = cols;
-    tr.appendChild(td);
-    body.appendChild(tr);
-    return;
-  }
-  rows.forEach(r => body.appendChild(r));
-}
-
-async function refresh() {
-  try {
-    const response = await fetch('/api/status', {cache:'no-store'});
-    const s = await response.json();
-    if (!response.ok) throw new Error(s.error || 'Status request failed');
-
-    $('mode').textContent = s.mode || 'unknown';
-    $('cash').textContent = money(s.cash);
-    $('equity').textContent = money(s.equity);
-    $('realized').textContent = money(s.realized_pnl);
-    $('unrealized').textContent = money(s.unrealized_pnl);
-    $('count').textContent = (s.positions || []).length;
-    $('status').textContent = s.real_trading === false
-      ? 'Connected — paper trading only'
-      : 'Safety status unavailable';
-
-    fillTable('markets', (s.markets || []).map(m => row([
-      m.symbol, money(m.price), fmt(m.rsi), m.signal
-    ])), 'Waiting for market data', 4);
-
-    fillTable('positions', (s.positions || []).map(p => row([
-      p.symbol, money(p.entry), money(p.price), money(p.stop),
-      money(p.unrealized_net)
-    ])), 'No open positions', 5);
-
-    fillTable('history', (s.history || []).slice(0,20).map(t => row([
-      t.time, t.side, t.symbol, money(t.price),
-      t.net_pnl == null ? '—' : money(t.net_pnl), t.reason
-    ])), 'No trades recorded yet', 6);
-
-    const c = s.config || {};
-    $('netTarget').textContent =
-      'Net target: ' + (Number(c.net_target) * 100).toFixed(0) +
-      '% of position entry value after estimated fees.';
-
-    $('config').textContent =
-      'Interval: ' + (c.interval || '—') +
-      ' | Fee: ' + (Number(c.fee_rate) * 100).toFixed(2) + '%' +
-      ' | Risk: ' + (Number(c.risk_fraction) * 100).toFixed(2) + '%' +
-      ' | Max allocation: ' + (Number(c.max_allocation) * 100).toFixed(0) + '%' +
-      ' | ATR multiplier: ' + (c.atr_multiplier ?? '—');
-    $('errors').textContent = s.last_error ? 'Engine warning: ' + s.last_error : '';
-    $('scan').textContent = 'Last scan: ' + (s.last_scan || 'not scanned yet');
-  } catch (error) {
-    $('status').textContent = 'Not connected: ' + error.message;
-  }
-}
-
-async function control(mode) {
-  $('status').textContent = 'Sending ' + mode + ' command…';
-  try {
-    const response = await fetch('/api/control', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({mode})
-    });
-    const result = await response.json();
-    if (!response.ok || !result.ok) throw new Error(result.error || 'Command failed');
-    $('status').textContent = 'Command accepted: ' + mode + ' (paper only)';
-    await refresh();
-  } catch (error) {
-    $('status').textContent = 'Control error: ' + error.message;
-  }
-}
-refresh();
-setInterval(refresh, 5000);
+load(); setInterval(load, 10000);
 </script>
-</body>
-</html>
+</body></html>
