@@ -18,7 +18,8 @@ h1{margin:0 0 8px}
 async function load(){
  try{
   const s = await (await fetch('./state.json?v='+Date.now())).json();
-  const eq = s.equity || s.total_equity || 0;
+  const eq = s.equity || s.total_equity || s.cash || 0;
+  const finalEq = eq>0?eq:cash;
   const cash = s.cash || s.available_cash || 0;
   const realized = s.realized_pnl || s.realized || 0;
   const unreal = s.unrealized_pnl || s.unrealized || 0;
@@ -27,7 +28,7 @@ async function load(){
   <div class="grid">
    <div class="card"><div class="badge">Mode</div><div class="value" style="color:#38bdf8">${s.mode || 'PAPER'}</div></div>
    <div class="card"><div class="badge">Cash</div><div class="value">$${cash.toFixed(2)}</div></div>
-   <div class="card"><div class="badge">Equity</div><div class="value">$${eq.toFixed(2)}</div></div>
+   <div class="card"><div class="badge">Equity</div><div class="value">$${finalEq.toFixed(2)}</div></div>
    <div class="card"><div class="badge">Realized P/L</div><div class="value" style="color:${realized>=0?'#22c55e':'#ef4444'}">$${realized.toFixed(2)}</div></div>
    <div class="card"><div class="badge">Unrealized P/L</div><div class="value">$${unreal.toFixed(2)}</div></div>
    <div class="card"><div class="badge">Open positions</div><div class="value">${pos}</div></div>
