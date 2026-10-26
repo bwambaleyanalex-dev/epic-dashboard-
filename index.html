@@ -1,41 +1,58 @@
 <!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Paper Spot Bot - Live</title>
+<title>Paper Spot Bot - PRO</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-body{background:#0f172a;color:#e2e8f0;font-family:system-ui;padding:16px}
-.card{background:#1e293b;border-radius:12px;padding:16px;margin:8px 0}
-h1{margin:0 0 8px}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.badge{background:#334155;padding:8px 12px;border-radius:8px;font-size:14px}
-.value{font-size:22px;font-weight:bold;margin-top:6px}
-.small{color:#94a3b8;font-size:12px}
+:root{--bg:#0a0e19;--card:#131a2b;--card2:#1c2540;--accent:#5ee9ff;--green:#22c55e;--red:#ef4444;--text:#e2e8f0;--muted:#94a3b8}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,sans-serif;padding:14px}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.logo{font-size:22px;font-weight:800;letter-spacing:-0.5px}
+.live{font-size:11px;background:var(--green);color:#000;padding:4px 8px;border-radius:20px;font-weight:700;animation:pulse 2s infinite}
+@keyframes pulse{0%{opacity:1}50%{opacity:.6}100%{opacity:1}}
+.grid4{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+@media(min-width:600px){.grid4{grid-template-columns:repeat(4,1fr)}}
+.card{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid #233052;border-radius:14px;padding:14px}
+.label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px}
+.val{font-size:22px;font-weight:800}.positive{color:var(--green)}.negative{color:var(--red)}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{color:var(--muted);text-align:left;padding:8px 6px;border-bottom:1px solid #233052;font-size:10px;text-transform:uppercase}
+td{padding:8px 6px;border-bottom:1px solid #1a2440}
+.badge{padding:3px 7px;border-radius:6px;font-size:10px;font-weight:700}
+.badge-buy{background:#22c55e20;color:var(--green)} .badge-sell{background:#ef444420;color:var(--red)}
+.footer{color:var(--muted);font-size:11px;text-align:center;margin-top:18px}
+.lock{background:#12213a;border-left:3px solid var(--accent);padding:10px 12px;border-radius:10px;font-size:12px;margin-bottom:14px}
 </style></head><body>
-<h1>Paper Spot Bot</h1>
-<div class="small">Separate $10.05 simulated spot account • Live from GitHub</div>
-<div class="card" style="border-left:4px solid #22c55e">🔒 Paper trading only. Real-money orders are disabled.</div>
-<div id="content">Loading...</div>
+<div class="header"><div class="logo">PAPER SPOT BOT <span style="color:var(--accent)">PRO</span></div><div class="live">● LIVE</div></div>
+<div class="lock">🔒 $10.05 simulated paper account • Real money disabled</div>
+<div class="grid4" id="stats"></div>
+<div class="card" style="margin:12px 0"><div class="label">Equity Curve</div><canvas id="eqChart" height="160"></canvas></div>
+<div class="grid4">
+<div class="card" style="grid-column:span 2"><div class="label">Realized P/L per Trade</div><canvas id="pnlChart" height="120"></canvas></div>
+<div class="card" style="grid-column:span 2"><div class="label">Performance</div><div id="perf" style="margin-top:8px;line-height:1.8;font-size:13px"></div></div>
+</div>
+<div class="card" style="margin-top:12px"><div class="label">Trade History (Last 50)</div><div style="overflow:auto;max-height:360px"><table id="trades"><thead><tr><th>Time</th><th>Side</th><th>Pair</th><th>Price</th><th>P/L</th></tr></thead><tbody></tbody></table></div></div>
+<div class="footer" id="footer">Loading...</div>
 <script>
-async function load(){
- try{
-  const s = await (await fetch('./state.json?v='+Date.now())).json();
-  const eq = s.equity || s.total_equity || s.cash || 0;
-  const finalEq = eq>0?eq:cash;
-  const cash = s.cash || s.available_cash || 0;
-  const realized = s.realized_pnl || s.realized || 0;
-  const unreal = s.unrealized_pnl || s.unrealized || 0;
-  const pos = (s.positions && Object.keys(s.positions).length) || s.open_positions || 0;
-  document.getElementById('content').innerHTML = `
-  <div class="grid">
-   <div class="card"><div class="badge">Mode</div><div class="value" style="color:#38bdf8">${s.mode || 'PAPER'}</div></div>
-   <div class="card"><div class="badge">Cash</div><div class="value">$${cash.toFixed(2)}</div></div>
-   <div class="card"><div class="badge">Equity</div><div class="value">$${finalEq.toFixed(2)}</div></div>
-   <div class="card"><div class="badge">Realized P/L</div><div class="value" style="color:${realized>=0?'#22c55e':'#ef4444'}">$${realized.toFixed(2)}</div></div>
-   <div class="card"><div class="badge">Unrealized P/L</div><div class="value">$${unreal.toFixed(2)}</div></div>
-   <div class="card"><div class="badge">Open positions</div><div class="value">${pos}</div></div>
-  </div>
-  <div class="card"><div class="small">Last update: ${new Date().toLocaleString()}</div></div>`;
- }catch(e){ document.getElementById('content').innerHTML = 'Error: '+e.message; }
+async function loadAll(){
+ const [state,tradesText]=await Promise.all([fetch('./state.json?v='+Date.now()).then(r=>r.json()),fetch('./trades.jsonl?v='+Date.now()).then(r=>r.text()).catch(()=> '')]);
+ const trades=tradesText.trim().split('\n').filter(Boolean).map(l=>{try{return JSON.parse(l)}catch{return null}}).filter(Boolean);
+ const cash=s.cash??s.available_cash??0; 
+ const eq=s.equity??s.total_equity??cash;
+ const real=s.realized_pnl??s.realized??0;
+ const unreal=s.unrealized_pnl??0;
+ const win=trades.filter(t=>(t.pnl||0)>0).length;
+ const wr=trades.length?Math.round(win/trades.length*100):0;
+ document.getElementById('stats').innerHTML=`<div class="card"><div class="label">Equity</div><div class="val">$${eq.toFixed(2)}</div><div class="label">${eq>=10.05?'▲':'▼'} ${((eq/10.05-1)*100).toFixed(2)}%</div></div><div class="card"><div class="label">Cash</div><div class="val">$${cash.toFixed(2)}</div><div class="label">Available</div></div><div class="card"><div class="label">Realized P/L</div><div class="val ${real>=0?'positive':'negative'}">$${real.toFixed(2)}</div><div class="label">${win}W / ${trades.length-win}L</div></div><div class="card"><div class="label">Win Rate</div><div class="val">${wr}%</div><div class="label">${trades.length} trades</div></div>`;
+ document.getElementById('perf').innerHTML=`<div>Start: <b>$10.05</b> → Now: <b>$${eq.toFixed(2)}</b></div><div>Unrealized: <b class="${unreal>=0?'positive':'negative'}">$${unreal.toFixed(2)}</b></div><div>Open: <b>${Object.keys(s.positions||{}).length||s.open_positions||0}</b></div><div>Mode: <b style="color:#5ee9ff">${s.mode||'PAPER'}</b></div>`;
+ let equity=10.05; let labels=[],eqData=[],pnlData=[];
+ trades.forEach((t,i)=>{if(t.pnl)equity+=t.pnl; else if(t.realized_pnl)equity+=t.realized_pnl; labels.push(i+1); eqData.push(equity); pnlData.push(t.pnl||0);});
+ if(eqData.length==0){labels=[1]; eqData=[eq]; pnlData=[0];}
+ new Chart(eqChart,{type:'line',data:{labels,datasets:[{data:eqData,borderColor:'#5ee9ff',backgroundColor:'rgba(94,233,255,0.12)',fill:true,tension:0.4,pointRadius:0,borderWidth:2}]},options:{plugins:{legend:{display:false}},scales:{x:{display:false},y:{grid:{color:'#1a2440'},ticks:{color:'#64748b'}}}}});
+ new Chart(pnlChart,{type:'bar',data:{labels,datasets:[{data:pnlData,backgroundColor:pnlData.map(v=>v>=0?'#22c55e':'#ef4444'),borderRadius:4}]},options:{plugins:{legend:{display:false}},scales:{x:{display:false},y:{grid:{color:'#1a2440'}}}}});
+ const tbody=document.querySelector('#trades tbody');
+ tbody.innerHTML=trades.slice(-50).reverse().map(t=>{const time=(t.time||t.timestamp||'').toString().slice(0,19).replace('T',' '); const side=(t.side||t.action||'').toUpperCase(); const pair=t.symbol||t.pair||'BTC/USDT'; const price=t.price||t.entry||0; const pnl=t.pnl??t.realized_pnl??''; return `<tr><td style="color:#94a3b8">${time||'—'}</td><td><span class="badge ${side.includes('BUY')?'badge-buy':'badge-sell'}">${side}</span></td><td>${pair}</td><td>$${Number(price).toFixed(2)}</td><td class="${pnl>=0?'positive':'negative'}">${pnl!==''?'$'+Number(pnl).toFixed(2):'—'}</td></tr>`}).join('') || '<tr><td colspan=5 style="color:#64748b">No trades yet</td></tr>';
+ document.getElementById('footer').innerHTML=`Last update: ${new Date().toLocaleString()} • ${trades.length} trades • Auto-refresh 15s`;
 }
-load(); setInterval(load, 10000);
+loadAll(); setInterval(()=>location.reload(),15000);
 </script>
 </body></html>
